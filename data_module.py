@@ -73,6 +73,8 @@ class MyDataset(Dataset):
         raw_cloth_img = Image.open(os.path.join(self.image_root_path, cloth))
         raw_mask = Image.open(os.path.join(self.image_root_path, mask)).resize((768,1024))
 
+        cloth_img_tensor = self.transforms(raw_cloth_img.convert("RGB").resize((512,512)))
+
         target_img_tensor = self.transforms(raw_target_img.convert("RGB"))
         mask_tensor, masked_img_tensor = prepare_mask_and_masked_image(raw_target_img, raw_mask)
 
@@ -112,6 +114,7 @@ class MyDataset(Dataset):
         original_size = torch.tensor([1024, 768])
 
         return {
+            "cloth_image": cloth_img_tensor, #to be used in garment unet
             "target_image": target_img_tensor,  # output
             "text_input_ids": text_input_ids,
             "text_input_ids_2": text_input_ids_2,
@@ -129,6 +132,7 @@ class MyDataset(Dataset):
 
 
 def collate_fn(data):
+    cloth_images = torch.stack([example["cloth_image"] for example in data])
     target_images = torch.stack([example["target_image"] for example in data])
     text_input_ids = torch.cat([example["text_input_ids"] for example in data],dim=0)
     text_input_ids_2 = torch.cat([example["text_input_ids_2"] for example in data],dim=0)
@@ -141,6 +145,7 @@ def collate_fn(data):
     target_size = torch.stack([example["target_size"] for example in data])
 
     return {
+        "cloth_images": cloth_images,
         "target_images": target_images,
         "text_input_ids": text_input_ids,
         "text_input_ids_2": text_input_ids_2,
@@ -166,10 +171,10 @@ if __name__=="__main__":
     
     dataset = MyDataset(json_file=json_file, tokenizer=tokenizer, tokenizer_2=tokenizer_2, image_root_path=image_root_path)
 
-
     #shapes before dataloader
     print("------using only dataset--------")
     print(f"Lenght of dataset: {len(dataset)}")
+    print(f"Shape of cloth image: {dataset[1]['cloth_image'].shape}")
     print(f"Shape of target image: {dataset[1]['target_image'].shape}")
     print(f"Shape of clip cloth image: {dataset[1]['clip_cloth_img'].shape}")
     print(f"Shape of masked image: {dataset[1]['masked_img'].shape}")
@@ -189,6 +194,7 @@ if __name__=="__main__":
     print("\n------using data loader without collate function--------")
     print(f"Lenght of dataloader with batchsize 4: {len(train_dataloader)}")
     for batch in train_dataloader:
+        print(f"Shape of cloth image: {batch['cloth_image'].shape}")
         print(f"Shape of target image: {batch['target_image'].shape}")
         print(f"Shape of clip cloth image: {batch['clip_cloth_img'].shape}")
         print(f"Shape of masked image: {batch['masked_img'].shape}")
@@ -196,8 +202,7 @@ if __name__=="__main__":
         print(f"Shape of text_input_ids: {batch['text_input_ids'].shape}")
         print(f"Shape of text_input_ids_2: {batch['text_input_ids_2'].shape}")
         print(f"drop_image_embed: {batch['drop_image_embed']}")
-        break  # This will print only the first batch and then exit the loop.
-
+        break  
     
     #shapes after using dataloader with collate function
     train_dataloader = torch.utils.data.DataLoader(
@@ -210,6 +215,7 @@ if __name__=="__main__":
     print("\n------using data loader with collate function--------")
     print(f"Lenght of dataloader with batchsize 4: {len(train_dataloader)}")
     for batch in train_dataloader:
+        print(f"Shape of cloth image: {batch['cloth_images'].shape}")
         print(f"Shape of target image: {batch['target_images'].shape}")
         print(f"Shape of clip cloth image: {batch['clip_cloth_images'].shape}")
         print(f"Shape of masked image: {batch['masked_images'].shape}")
@@ -217,5 +223,4 @@ if __name__=="__main__":
         print(f"Shape of text_input_ids: {batch['text_input_ids'].shape}")
         print(f"Shape of text_input_ids_2: {batch['text_input_ids_2'].shape}")
         print(f"drop_image_embed: {batch['drop_image_embeds']}")
-        break  # This will print only the first batch and then exit the loop.
-
+        break  

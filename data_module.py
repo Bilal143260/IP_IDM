@@ -86,17 +86,36 @@ class MyDataset(Dataset):
             images=raw_cloth_img, return_tensors="pt"
         ).pixel_values
 
+        prompt_ref = f"a photo of {text}"
+        prompt_try = f"model is wearing a {text}"
+
         # get text and tokenize
-        text_input_ids = self.tokenizer(
-            text,
+        text_input_ids_ref = self.tokenizer(
+            prompt_ref,
             max_length=self.tokenizer.model_max_length,
             padding="max_length",
             truncation=True,
             return_tensors="pt",
         ).input_ids
 
-        text_input_ids_2 = self.tokenizer_2(
-            text,
+        text_input_ids_2_ref = self.tokenizer_2(
+            prompt_ref,
+            max_length=self.tokenizer_2.model_max_length,
+            padding="max_length",
+            truncation=True,
+            return_tensors="pt",
+        ).input_ids
+
+        text_input_ids_try = self.tokenizer(
+            prompt_try,
+            max_length=self.tokenizer.model_max_length,
+            padding="max_length",
+            truncation=True,
+            return_tensors="pt",
+        ).input_ids
+
+        text_input_ids_2_try = self.tokenizer_2(
+            prompt_try,
             max_length=self.tokenizer_2.model_max_length,
             padding="max_length",
             truncation=True,
@@ -121,8 +140,10 @@ class MyDataset(Dataset):
             "cloth_image": cloth_img_tensor, #to be used in garment unet
             "target_image": target_img_tensor,  # output
             "pose_image": pose_tensor,
-            "text_input_ids": text_input_ids,
-            "text_input_ids_2": text_input_ids_2,
+            "text_input_ids_ref": text_input_ids_ref,
+            "text_input_ids_2_ref": text_input_ids_2_ref,
+            "text_input_ids_try": text_input_ids_try,
+            "text_input_ids_2_try": text_input_ids_2_try,
             "clip_cloth_img": clip_cloth_img,  # input
             "masked_img": masked_img_tensor,  # input
             "mask": mask_tensor,  # input
@@ -140,8 +161,10 @@ def collate_fn(data):
     cloth_images = torch.stack([example["cloth_image"] for example in data])
     target_images = torch.stack([example["target_image"] for example in data])
     pose_images =  torch.stack([example["pose_image"] for example in data])
-    text_input_ids = torch.cat([example["text_input_ids"] for example in data],dim=0)
-    text_input_ids_2 = torch.cat([example["text_input_ids_2"] for example in data],dim=0)
+    text_input_ids_ref = torch.cat([example["text_input_ids_ref"] for example in data],dim=0)
+    text_input_ids_2_ref = torch.cat([example["text_input_ids_2_ref"] for example in data],dim=0)
+    text_input_ids_try = torch.cat([example["text_input_ids_try"] for example in data],dim=0)
+    text_input_ids_2_try = torch.cat([example["text_input_ids_2_try"] for example in data],dim=0)
     clip_cloth_imgs = torch.cat([example["clip_cloth_img"] for example in data],dim=0)
     masked_imgs = torch.cat([example["masked_img"] for example in data])
     masks = torch.cat([example["mask"] for example in data])
@@ -154,8 +177,10 @@ def collate_fn(data):
         "cloth_images": cloth_images,
         "target_images": target_images,
         "pose_images": pose_images,
-        "text_input_ids": text_input_ids,
-        "text_input_ids_2": text_input_ids_2,
+        "text_input_ids_ref": text_input_ids_ref,
+        "text_input_ids_2_ref": text_input_ids_2_ref,
+        "text_input_ids_try": text_input_ids_try,
+        "text_input_ids_2_try": text_input_ids_2_try,
         "clip_cloth_images": clip_cloth_imgs,
         "masked_images": masked_imgs,
         "masks": masks,
@@ -187,8 +212,10 @@ if __name__=="__main__":
     print(f"Shape of clip cloth image: {dataset[1]['clip_cloth_img'].shape}")
     print(f"Shape of masked image: {dataset[1]['masked_img'].shape}")
     print(f"Shape of mask: {dataset[1]['mask'].shape}")
-    print(f"Shape of text_input_ids: {dataset[1]['text_input_ids'].shape}")
-    print(f"Shape of text_input_ids_2: {dataset[1]['text_input_ids_2'].shape}")
+    print(f"Shape of text_input_ids_ref: {dataset[1]['text_input_ids_ref'].shape}")
+    print(f"Shape of text_input_ids_2_ref: {dataset[1]['text_input_ids_2_ref'].shape}")
+    print(f"Shape of text_input_ids_try: {dataset[1]['text_input_ids_try'].shape}")
+    print(f"Shape of text_input_ids_2_try: {dataset[1]['text_input_ids_2_try'].shape}")
     print(f"drop_image_embed: {dataset[1]['drop_image_embed']}")
 
     #shapes after using dataloader without collate function
@@ -208,8 +235,10 @@ if __name__=="__main__":
         print(f"Shape of clip cloth image: {batch['clip_cloth_img'].shape}")
         print(f"Shape of masked image: {batch['masked_img'].shape}")
         print(f"Shape of mask: {batch['mask'].shape}")
-        print(f"Shape of text_input_ids: {batch['text_input_ids'].shape}")
-        print(f"Shape of text_input_ids_2: {batch['text_input_ids_2'].shape}")
+        print(f"Shape of text_input_ids_ref: {batch['text_input_ids_ref'].shape}")
+        print(f"Shape of text_input_ids_2_ref: {batch['text_input_ids_2_ref'].shape}")
+        print(f"Shape of text_input_ids_try: {batch['text_input_ids_try'].shape}")
+        print(f"Shape of text_input_ids_2_try: {batch['text_input_ids_2_try'].shape}")
         print(f"drop_image_embed: {batch['drop_image_embed']}")
         break  
     
@@ -230,7 +259,9 @@ if __name__=="__main__":
         print(f"Shape of clip cloth image: {batch['clip_cloth_images'].shape}")
         print(f"Shape of masked image: {batch['masked_images'].shape}")
         print(f"Shape of mask: {batch['masks'].shape}")
-        print(f"Shape of text_input_ids: {batch['text_input_ids'].shape}")
-        print(f"Shape of text_input_ids_2: {batch['text_input_ids_2'].shape}")
+        print(f"Shape of text_input_ids_ref: {batch['text_input_ids_ref'].shape}")
+        print(f"Shape of text_input_ids_2_ref: {batch['text_input_ids_2_ref'].shape}")
+        print(f"Shape of text_input_ids_try: {batch['text_input_ids_try'].shape}")
+        print(f"Shape of text_input_ids_2_try: {batch['text_input_ids_2_try'].shape}")
         print(f"drop_image_embed: {batch['drop_image_embeds']}")
         break  

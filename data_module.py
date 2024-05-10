@@ -50,7 +50,7 @@ class MyDataset(Dataset):
         self.ti_drop_rate = ti_drop_rate
         self.image_root_path = image_root_path
 
-        self.data = json.load(open(json_file))
+        self.data = json.load(open(json_file))[0:16]
 
         self.transforms = transforms.Compose(
             [
@@ -64,16 +64,20 @@ class MyDataset(Dataset):
 
     def __getitem__(self, index):
         item = self.data[index]  # single object from json file
-        text = item["prompt"]
+        text = item["item"]
         target_img = item["target"]
         cloth = item["source"]
         mask = item["mask"]
+        pose = item["pose"]
 
         raw_target_img = Image.open(os.path.join(self.image_root_path, target_img))
         raw_cloth_img = Image.open(os.path.join(self.image_root_path, cloth))
         raw_mask = Image.open(os.path.join(self.image_root_path, mask)).resize((768,1024))
+        raw_pose = Image.open(os.path.join(self.image_root_path, pose))
 
-        cloth_img_tensor = self.transforms(raw_cloth_img.convert("RGB").resize((512,512)))
+        cloth_img_tensor = self.transforms(raw_cloth_img.convert("RGB"))
+
+        pose_tensor = self.transforms(raw_pose)
 
         target_img_tensor = self.transforms(raw_target_img.convert("RGB"))
         mask_tensor, masked_img_tensor = prepare_mask_and_masked_image(raw_target_img, raw_mask)
@@ -116,6 +120,7 @@ class MyDataset(Dataset):
         return {
             "cloth_image": cloth_img_tensor, #to be used in garment unet
             "target_image": target_img_tensor,  # output
+            "pose_image": pose_tensor,
             "text_input_ids": text_input_ids,
             "text_input_ids_2": text_input_ids_2,
             "clip_cloth_img": clip_cloth_img,  # input
@@ -134,6 +139,7 @@ class MyDataset(Dataset):
 def collate_fn(data):
     cloth_images = torch.stack([example["cloth_image"] for example in data])
     target_images = torch.stack([example["target_image"] for example in data])
+    pose_images =  torch.stack([example["pose_image"] for example in data])
     text_input_ids = torch.cat([example["text_input_ids"] for example in data],dim=0)
     text_input_ids_2 = torch.cat([example["text_input_ids_2"] for example in data],dim=0)
     clip_cloth_imgs = torch.cat([example["clip_cloth_img"] for example in data],dim=0)
@@ -147,6 +153,7 @@ def collate_fn(data):
     return {
         "cloth_images": cloth_images,
         "target_images": target_images,
+        "pose_images": pose_images,
         "text_input_ids": text_input_ids,
         "text_input_ids_2": text_input_ids_2,
         "clip_cloth_images": clip_cloth_imgs,
@@ -163,8 +170,8 @@ if __name__=="__main__":
     from transformers import CLIPTokenizer
 
     pretrained_model_name = "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
-    json_file = "/home/bilal/datasets/long_training_data/output.json"
-    image_root_path = "/home/bilal/datasets/long_training_data"
+    json_file = "/home/bilal/datasets/tested_data/data_2.json"
+    image_root_path = "/home/bilal/datasets/tested_data"
 
     tokenizer = CLIPTokenizer.from_pretrained(pretrained_model_name, subfolder="tokenizer")
     tokenizer_2 = CLIPTokenizer.from_pretrained(pretrained_model_name, subfolder="tokenizer_2")
@@ -176,6 +183,7 @@ if __name__=="__main__":
     print(f"Lenght of dataset: {len(dataset)}")
     print(f"Shape of cloth image: {dataset[1]['cloth_image'].shape}")
     print(f"Shape of target image: {dataset[1]['target_image'].shape}")
+    print(f"Shape of pose: {dataset[1]['pose_image'].shape}")
     print(f"Shape of clip cloth image: {dataset[1]['clip_cloth_img'].shape}")
     print(f"Shape of masked image: {dataset[1]['masked_img'].shape}")
     print(f"Shape of mask: {dataset[1]['mask'].shape}")
@@ -196,6 +204,7 @@ if __name__=="__main__":
     for batch in train_dataloader:
         print(f"Shape of cloth image: {batch['cloth_image'].shape}")
         print(f"Shape of target image: {batch['target_image'].shape}")
+        print(f"Shape of pose: {batch['pose_image'].shape}")
         print(f"Shape of clip cloth image: {batch['clip_cloth_img'].shape}")
         print(f"Shape of masked image: {batch['masked_img'].shape}")
         print(f"Shape of mask: {batch['mask'].shape}")
@@ -217,6 +226,7 @@ if __name__=="__main__":
     for batch in train_dataloader:
         print(f"Shape of cloth image: {batch['cloth_images'].shape}")
         print(f"Shape of target image: {batch['target_images'].shape}")
+        print(f"Shape of pose: {batch['pose_images'].shape}")
         print(f"Shape of clip cloth image: {batch['clip_cloth_images'].shape}")
         print(f"Shape of masked image: {batch['masked_images'].shape}")
         print(f"Shape of mask: {batch['masks'].shape}")

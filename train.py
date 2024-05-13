@@ -68,7 +68,7 @@ def parse_args():
     parser.add_argument("--weight_decay", type=float, default=1e-2, help="Weight decay to use.")
     parser.add_argument("--num_train_epochs", type=int, default=1)
     parser.add_argument(
-        "--train_batch_size", type=int, default=4, help="Batch size (per device) for the training dataloader."
+        "--train_batch_size", type=int, default=3, help="Batch size (per device) for the training dataloader."
     )
     parser.add_argument("--noise_offset", type=float, default=None, help="noise offset")
     parser.add_argument(
@@ -82,7 +82,7 @@ def parse_args():
     parser.add_argument(
         "--save_steps",
         type=int,
-        default=15000,
+        default=2,
         help=(
             "Save a checkpoint of the training state every X updates"
         ),
@@ -157,6 +157,7 @@ def main():
         weight_dtype = torch.float16
     elif accelerator.mixed_precision == "bf16":
         weight_dtype = torch.bfloat16
+    
     unet_ref.to(accelerator.device, dtype=weight_dtype)
     vae.to(accelerator.device) # use fp32
     text_encoder.to(accelerator.device, dtype=weight_dtype)
@@ -175,7 +176,7 @@ def main():
         train_dataset,
         shuffle=True,
         collate_fn=collate_fn,
-        batch_size=2,
+        batch_size=args.train_batch_size,
         num_workers=args.dataloader_num_workers
     )
 
@@ -205,6 +206,7 @@ def main():
 
                     masks = batch["masks"]
                     mask =  F.interpolate(masks, size=(128, 96), mode='bilinear', align_corners=False)
+                    # mask =  F.interpolate(masks, size=(64, 48), mode='bilinear', align_corners=False)
 
                     pose_latents = vae.encode(batch["pose_images"].to(accelerator.device, dtype=torch.float32)).latent_dist.sample()
                     pose_latents = pose_latents * vae.config.scaling_factor
@@ -251,7 +253,7 @@ def main():
                     image_embeds = torch.stack(image_embeds_)
                     image_embeds = image_embeds.float()
                     image_embeds = unet_try.encoder_hid_proj(image_embeds)
-                    print(f"DIMENSIONS OF IMAGE EMBEDS {image_embeds.shape}")
+                    # print(f"DIMENSIONS OF IMAGE EMBEDS {image_embeds.shape}")
             
                 with torch.no_grad():
                     encoder_output = text_encoder(batch['text_input_ids_try'].to(accelerator.device), output_hidden_states=True)
@@ -260,7 +262,7 @@ def main():
                     pooled_text_embeds = encoder_output_2[0]
                     text_embeds_2 = encoder_output_2.hidden_states[-2]
                     text_embeds = torch.concat([text_embeds, text_embeds_2], dim=-1)
-                    print(f"DIMENSIONS OF TEXT EMBEDS {text_embeds.shape}")
+                    # print(f"DIMENSIONS OF TEXT EMBEDS {text_embeds.shape}")
                 
                 # add cond
                 add_time_ids = [
@@ -271,9 +273,9 @@ def main():
                 add_time_ids = torch.cat(add_time_ids, dim=1).to(accelerator.device, dtype=weight_dtype)
                 unet_added_cond_kwargs = {"text_embeds": pooled_text_embeds,"time_ids":add_time_ids, "image_embeds": image_embeds}
 
-                print(f"added_cond_kwargs text_embeds shape {unet_added_cond_kwargs['text_embeds'].shape}")
-                print(f"added_cond_kwargs time_ids shape {unet_added_cond_kwargs['time_ids'].shape}")
-                print(f"added_cond_kwargs image_embeds shape {unet_added_cond_kwargs['image_embeds'].shape}")
+                # print(f"added_cond_kwargs text_embeds shape {unet_added_cond_kwargs['text_embeds'].shape}")
+                # print(f"added_cond_kwargs time_ids shape {unet_added_cond_kwargs['time_ids'].shape}")
+                # print(f"added_cond_kwargs image_embeds shape {unet_added_cond_kwargs['image_embeds'].shape}")
 
                 with torch.no_grad():
                     encoder_output_ref = text_encoder(batch['text_input_ids_ref'].to(accelerator.device), output_hidden_states=True)
@@ -285,12 +287,12 @@ def main():
 
                 down, garment_features = unet_ref(cloth_noisy_latents, timesteps, text_embeds_ref)
 
-                print(f"LENGTH OF GARMENT FEATURES: {len(garment_features)}")
-                print(f"SHAPE OF LATENT_MODEL_INPUTS: {latent_model_input.shape}")
+                # print(f"LENGTH OF GARMENT FEATURES: {len(garment_features)}")
+                # print(f"SHAPE OF LATENT_MODEL_INPUTS: {latent_model_input.shape}")
                 #TODO: check if we need to index the result
                 noise_pred = unet_try(latent_model_input, timesteps, text_embeds, 
                                   added_cond_kwargs=unet_added_cond_kwargs, garment_features = garment_features)[0]
-                print(f'SHAPE OF UNET TRY OUTPUT: {noise_pred.shape}')
+                # print(f'SHAPE OF UNET TRY OUTPUT: {noise_pred.shape}')
                 loss = F.mse_loss(noise_pred.float(), noise.float(), reduction="mean")
 
                 # Gather the losses across all processes for logging (if we use distributed training).
@@ -313,12 +315,12 @@ def main():
             
             if global_step % args.save_steps == 0:
                 save_path = os.path.join(args.output_dir, f"checkpoint-{global_step}")
-                accelerator.save_state(save_path, safe_serialization=False)
+                accelerator.save_state(save_path, safe_serialization=False, max_shard_size="15GB")
 
         # Calculate and log the average loss for the epoch
         average_loss = total_loss / len(train_dataloader)
     unet_try = accelerator.unwrap_model(unet_try)
-    accelerator.save_model(unet_try, args.output_dir, safe_serialization=False)
+    accelerator.save_model(unet_try, args.output_dir, safe_serialization=False,  max_shard_size="15GB")
 
 if __name__ == "__main__":
     main()    

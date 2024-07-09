@@ -73,16 +73,16 @@ class MyDataset(Dataset):
         pose = item["pose"]
 
         raw_target_img = Image.open(os.path.join(self.image_root_path, target_img)).resize(
-            (384, 512)
+            (768, 1024)
         )
         raw_cloth_img = Image.open(os.path.join(self.image_root_path, cloth)).resize(
-            (384, 512)
+            (768, 1024)
         )
         raw_mask = Image.open(os.path.join(self.image_root_path, mask)).resize(
-            (384, 512)
+            (768, 1024)
         )
         raw_pose = Image.open(os.path.join(self.image_root_path, pose)).resize(
-            (384, 512)
+            (768, 1024)
         )
 
         cloth_img_tensor = self.transforms(raw_cloth_img.convert("RGB"))

@@ -11,10 +11,10 @@ nohup accelerate launch  \
         --data_root_path="/home/bilal/datasets/tested_data"  \
         --mixed_precision="fp16"  \
         --resolution=1024  \
-        --train_batch_size=3  \
-        --dataloader_num_workers=4  \
-        --num_train_epochs=100 \
+        --train_batch_size=12  \
+        --dataloader_num_workers=6  \
+        --num_train_epochs=200 \
         --learning_rate=1e-05   \
         --weight_decay=0.01 \
         --output_dir="output"  \
-        --save_steps=50000 > training_log.txt 2>&1 &
+        --save_steps=100000 > training_log.txt 2>&1 &
